@@ -1,708 +1,658 @@
 #define _CRT_SECURE_NO_WARNINGS
 #include <iostream>
-#include <fstream>
-#include <vector>
-#include <string>
 #include <sstream>
+#include <fstream>
+#include <numeric>
 #include <algorithm>
+#include <string>
+#include <vector>
 #include <set>
-#include <queue>
 #include <stack>
+#include <queue>
 #include <limits>
 
-class DSU {
+class DSU
+{
 private:
-    std::vector<int> parent;
-    std::vector<int> rank;
+    std::vector<int> leader;
+    std::vector<int> depth;
 
 public:
-    DSU(int n) {
-        parent.resize(n);
-        rank.resize(n, 0);
-        for (int i = 0; i < n; ++i) {
-            parent[i] = i;
-        }
+    DSU(int N) : leader(N), depth(N, 0)
+    {
+        std::iota(leader.begin(), leader.end(), 0);
     }
 
-    int find(int x) {
-        if (parent[x] != x) {
-            parent[x] = find(parent[x]);
-        }
-        return parent[x];
+    int find(int x)
+    {
+        if (x == leader[x])
+            return x;
+        return leader[x] = find(leader[x]);
     }
 
-    void unite(int x, int y) {
-        int px = find(x);
-        int py = find(y);
-        if (px == py) return;
-
-        if (rank[px] < rank[py]) {
-            parent[px] = py;
-        }
-        else if (rank[px] > rank[py]) {
-            parent[py] = px;
-        }
-        else {
-            parent[py] = px;
-            rank[px]++;
+    void unite(int x, int y)
+    {
+        int leftRoot = find(x);
+        int rightRoot = find(y);
+        if (leftRoot != rightRoot)
+        {
+            if (depth[leftRoot] < depth[rightRoot])
+                leader[leftRoot] = rightRoot;
+            else
+            {
+                leader[rightRoot] = leftRoot;
+                if (depth[leftRoot] == depth[rightRoot])
+                    ++depth[leftRoot];
+            }
         }
     }
 };
 
-
-
-class Graph {
+class Graph
+{
 public:
-
-    enum Representation {
-        ADJACENCY_MATRIX,
-        ADJACENCY_LIST,
-        EDGE_LIST 
+    enum Format
+    {
+        EDGE_MATRIX,
+        CONNECTIVITY_LIST,
+        VERTEX_LINKS
     };
 
-
-    enum GraphType {
-        UNWEIGHTED,
+    enum GraphKind
+    {
+        NO_WEIGHTS,
         WEIGHTED
     };
 
+    Graph() : format_(EDGE_MATRIX), graphkind_(NO_WEIGHTS), vertexCount(0), edgeCount(0) {}
 
-    Graph() : representation_(ADJACENCY_MATRIX), graphType_(UNWEIGHTED), numVertices_(0), numEdges_(0) {}
-
-
-    void readGraph(const std::string& fileName) {
-        std::ifstream inputFile(fileName);
-        if (!inputFile.is_open()) {
-            std::cerr << "Error opening file: " << fileName << std::endl;
+    void readGraph(const std::string &fileName)
+    {
+        std::ifstream dataSource{fileName};
+        if (!dataSource.is_open())
+        {
+            std::cerr << "Не получается открыть файл" << fileName << '\n';
             return;
         }
 
-        char representationChar;
-        inputFile >> representationChar;
+        char symbol;
+        dataSource >> symbol;
 
-        if (representationChar == 'C') {
-            representation_ = ADJACENCY_MATRIX;
-        }
-        else if (representationChar == 'L') {
-            representation_ = ADJACENCY_LIST;
-        }
-        else if (representationChar == 'E') {
-            representation_ = EDGE_LIST;
-        }
-        else {
-            std::cerr << "Invalid representation character in file." << std::endl;
-            inputFile.close();
+        switch (symbol)
+        {
+        case 'C':
+            format_ = EDGE_MATRIX;
+            break;
+        case 'L':
+            format_ = CONNECTIVITY_LIST;
+            break;
+        case 'E':
+            format_ = VERTEX_LINKS;
+            break;
+        default:
+            std::cerr << "Неизвестный символ представления графа";
             return;
         }
 
-        if (representation_ == ADJACENCY_MATRIX) {
-            int n;
-            inputFile >> n;
-            numVertices_ = n;
-            int directed, weighted;
-            inputFile >> directed >> weighted;
-            graphType_ = (weighted == 1) ? WEIGHTED : UNWEIGHTED;
+        dataSource >> vertexCount;
+        int oriented, weighted;
+        dataSource >> oriented >> weighted;
+        graphkind_ = weighted ? WEIGHTED : NO_WEIGHTS;
 
-            adjacencyMatrix_.resize(n, std::vector<int>(n, 0));
-            for (int i = 0; i < n; ++i) {
-                for (int j = 0; j < n; ++j) {
-                    inputFile >> adjacencyMatrix_[i][j];
-                    if (adjacencyMatrix_[i][j] != 0) {
-                        numEdges_++;
-                    }
+        if (format_ == EDGE_MATRIX)
+        {
+            edgeMatrix_.assign(vertexCount, std::vector<int>(vertexCount));
+            for (int i = 0; i < vertexCount; ++i)
+            {
+                for (int j = 0; j < vertexCount; ++j)
+                {
+                    dataSource >> edgeMatrix_[i][j];
+                    edgeCount += (edgeMatrix_[i][j] != 0);
                 }
             }
-            if (directed == 0) {
-                numEdges_ /= 2;
-            }
-
-        }
-
-        else if (representation_ == ADJACENCY_LIST) {
-            int n;
-            inputFile >> n;
-            numVertices_ = n;
-            int directed, weighted;
-            inputFile >> directed >> weighted;
-
-            graphType_ = (weighted == 1) ? WEIGHTED : UNWEIGHTED;
-
-            adjacencyList_.resize(n);
-            for (int i = 0; i < n; ++i) {
-                std::string line;
-                std::getline(inputFile >> std::ws, line);
-                std::stringstream ss(line);
-                int neighbor, weight;
-                if (graphType_ == WEIGHTED) {
-                    while (ss >> neighbor >> weight) {
-                        adjacencyList_[i].push_back({ neighbor - 1, weight });
-                        numEdges_++;
-                    }
-                }
-                else {
-                    while (ss >> neighbor) {
-                        adjacencyList_[i].push_back({ neighbor - 1, 1 });
-                        numEdges_++;
-                    }
-                }
-            }
-            if (directed == 0) {
-                numEdges_ /= 2;
+            if (!oriented)
+            {
+                edgeCount /= 2;
             }
         }
-
-        else if (representation_ == EDGE_LIST) {
-            int n, m;
-            inputFile >> n >> m;
-            numVertices_ = n;
-            numEdges_ = m;
-            int directed, weighted;
-            inputFile >> directed >> weighted;
-
-            graphType_ = (weighted == 1) ? WEIGHTED : UNWEIGHTED;
-
-
-            edgeList_.resize(m);
-            for (int i = 0; i < m; ++i) {
-                int u, v, weight = 1;
-                if (graphType_ == WEIGHTED) {
-                    inputFile >> u >> v >> weight;
+        else if (format_ == CONNECTIVITY_LIST)
+        {
+            adjacentVerticesList_.assign(vertexCount, {});
+            std::string line;
+            std::getline(dataSource, line);
+            for (int i = 0; i < vertexCount; ++i)
+            {
+                std::getline(dataSource, line);
+                std::istringstream ss{line};
+                int nhbr, weight = 1;
+                while (ss >> nhbr)
+                {
+                    if (graphkind_ == WEIGHTED)
+                    {
+                        ss >> weight;
+                    }
+                    adjacentVerticesList_[i].emplace_back(nhbr - 1, weight);
+                    ++edgeCount;
                 }
-                else {
-                    inputFile >> u >> v;
-                }
-                edgeList_[i] = { u - 1, v - 1, weight };
+            }
+            if (!oriented)
+            {
+                edgeCount /= 2;
             }
         }
-        inputFile.close();
+        else if (format_ == VERTEX_LINKS)
+        {
+            edgeList_.reserve(edgeCount);
+            for (int i = 0; i < edgeCount; ++i)
+            {
+                int curr_peak, v, weight = 1;
+                dataSource >> curr_peak >> v;
+                if (graphkind_ == WEIGHTED)
+                {
+                    dataSource >> weight;
+                }
+                edgeList_.emplace_back(Edge{curr_peak - 1, v - 1, weight});
+            }
+        }
     }
 
+    int checkEuler(bool &circleExist)
+    {
+        const auto numComponents = countComponents();
+        if (numComponents > 1)
+            return 0;
 
-
-    int checkEuler(bool& circleExist) {
-        Representation originalRep = representation_;
-        transformToAdjList();
-        std::vector<int> degrees(numVertices_, 0);
-        int oddDegreeCount = 0;
-        int startVertex = -1;
-        for (int i = 0; i < numVertices_; ++i) {
-            degrees[i] = adjacencyList_[i].size();
-            if (degrees[i] % 2 == 1) {
-                oddDegreeCount++;
-                if (startVertex == -1) startVertex = i;
+        int oddDegreeVertexCount = 0;
+        int initialVertex = -1;
+        for (const auto &edges : adjacentVerticesList_)
+        {
+            const auto valence = edges.size();
+            if (valence % 2 == 1)
+            {
+                oddDegreeVertexCount++;
+                if (initialVertex == -1)
+                    initialVertex = &edges - &adjacentVerticesList_[0];
             }
-            if (degrees[i] > 0 && startVertex == -1) {
-                startVertex = i;
-            }
-        }
-        DSU dsu(numVertices_);
-        for (int u = 0; u < numVertices_; ++u) {
-            for (const auto& edge : adjacencyList_[u]) {
-                int v = edge.first;
-                if (u < v) {
-                    dsu.unite(u, v);
-                }
+            if (valence > 0 && initialVertex == -1)
+            {
+                initialVertex = &edges - &adjacentVerticesList_[0];
             }
         }
-        std::set<int> components;
-        for (int i = 0; i < numVertices_; ++i) {
-            if (degrees[i] > 0) {
-                components.insert(dsu.find(i));
-            }
-        }
-        if (originalRep == ADJACENCY_MATRIX) transformToAdjMatrix();
-        else if (originalRep == EDGE_LIST) transformToListOfEdges();
-        if (components.size() > 1) return 0;
-        if (oddDegreeCount == 0) {
-            circleExist = true;
-            return startVertex + 1;
-        }
-        else if (oddDegreeCount == 2) {
-            circleExist = false;
-            return startVertex + 1;
-        }
-        return 0;
+        circleExist = (oddDegreeVertexCount == 0);
+        return initialVertex + 1;
     }
 
-    std::vector<int> getEuleranTourFleri() {
-        std::vector<int> result;
+    int countComponents() const
+    {
+        std::vector<bool> marked(vertexCount, false);
+        int components = 0;
+        for (int i = 0; i < vertexCount; ++i)
+        {
+            if (!marked[i])
+            {
+                dfs(i, marked);
+                ++components;
+            }
+        }
+        return components;
+    }
+
+    void dfs(int vertex, std::vector<bool> &marked) const
+    {
+        marked[vertex] = true;
+        for (const auto &edge : adjacentVerticesList_[vertex])
+        {
+            const auto nhbr = edge.first;
+            if (!marked[nhbr])
+            {
+                dfs(nhbr, marked);
+            }
+        }
+    }
+
+    std::vector<int> getEuleranTourFleri()
+    {
+        std::vector<int> response;
         bool circleExist;
-        int start = checkEuler(circleExist);
-        if (start == 0) return result;
+        int init = checkEuler(circleExist);
+        if (init == 0)
+            return response;
 
-        Graph tempGraph = *this;
-        tempGraph.transformToAdjList();
-        std::stack<int> currPath;
-        start--;
-        currPath.push(start);
+        Graph graphBuffer = *this;
+        graphBuffer.transformToAdjList();
+        std::stack<int> activeRoute;
+        init--;
+        activeRoute.push(init);
 
-        while (!currPath.empty()) {
-            int u = currPath.top();
-            int nextV = -1;
-
-            for (auto& edge : tempGraph.adjacencyList_[u]) {
-                if (edge.second > 0) {
-                    edge.second--;
-                    for (auto& rev_edge : tempGraph.adjacencyList_[edge.first]) {
-                        if (rev_edge.first == u && rev_edge.second > 0) {
-                            rev_edge.second--;
-                            break;
-                        }
-                    }
-
-                    bool connected = tempGraph.isConnected();
-
-                    edge.second++;
-                    for (auto& rev_edge : tempGraph.adjacencyList_[edge.first]) {
-                        if (rev_edge.first == u) {
-                            rev_edge.second++;
-                            break;
-                        }
-                    }
-
-                    if (connected || nextV == -1) {
-                        nextV = edge.first;
-                        if (connected) break;
-                    }
+        while (!activeRoute.empty())
+        {
+            int curr_peak = activeRoute.top();
+            int nextNode = -1;
+            auto it = graphBuffer.adjacentVerticesList_[curr_peak].begin();
+            while (it != graphBuffer.adjacentVerticesList_[curr_peak].end())
+            {
+                if (it->second > 0)
+                {
+                    nextNode = it->first;
+                    it->second--;
+                    auto &revEdges = graphBuffer.adjacentVerticesList_[nextNode];
+                    auto revIt = std::find_if(revEdges.begin(), revEdges.end(), [curr_peak](const auto &edge)
+                                              { return edge.first == curr_peak; });
+                    revIt->second--;
+                    break;
                 }
+                ++it;
             }
 
-            if (nextV != -1) {
-                for (auto& edge : tempGraph.adjacencyList_[u]) {
-                    if (edge.first == nextV && edge.second > 0) {
-                        edge.second--;
-                        break;
-                    }
-                }
-                for (auto& edge : tempGraph.adjacencyList_[nextV]) {
-                    if (edge.first == u && edge.second > 0) {
-                        edge.second--;
-                        break;
-                    }
-                }
-
-                currPath.push(nextV);
+            if (nextNode == -1)
+            {
+                response.push_back(curr_peak + 1);
+                activeRoute.pop();
             }
-            else {
-                result.push_back(u + 1);
-                currPath.pop();
+            else
+            {
+                activeRoute.push(nextNode);
             }
         }
 
-        std::reverse(result.begin(), result.end());
-        return result;
+        std::reverse(response.begin(), response.end());
+        return response;
     }
 
-    std::vector<int> getEuleranTourEffective() {
-        std::vector<int> result;
+    std::vector<int> getEuleranTourEffective()
+    {
+        std::vector<int> response;
         bool circleExist;
-        int start = checkEuler(circleExist);
-        if (start == 0) return result;
+        int init = checkEuler(circleExist);
+        if (init == 0)
+            return response;
 
-        std::vector<std::vector<int>> tempAdj;
-        for (const auto& edges : adjacencyList_) {
-            tempAdj.emplace_back();
-            for (const auto& edge : edges) {
-                tempAdj.back().push_back(edge.first);
+        std::vector<std::vector<int>> temporaryAdjacency(adjacentVerticesList_.size());
+        for (size_t i = 0; i < adjacentVerticesList_.size(); ++i)
+        {
+            for (const auto &edge : adjacentVerticesList_[i])
+            {
+                temporaryAdjacency[i].push_back(edge.first);
             }
         }
 
-        std::stack<int> currPath;
-        start--;
-        currPath.push(start);
+        std::stack<int> activeRoute;
+        init--;
+        activeRoute.push(init);
 
-        while (!currPath.empty()) {
-            int u = currPath.top();
+        while (!activeRoute.empty())
+        {
+            int curr_peak = activeRoute.top();
 
-            if (!tempAdj[u].empty()) {
-                int v = tempAdj[u].back();
-                tempAdj[u].pop_back();
-
-                for (auto it = tempAdj[v].begin(); it != tempAdj[v].end(); ++it) {
-                    if (*it == u) {
-                        tempAdj[v].erase(it);
-                        break;
-                    }
-                }
-
-                currPath.push(v);
+            if (!temporaryAdjacency[curr_peak].empty())
+            {
+                int v = temporaryAdjacency[curr_peak].back();
+                temporaryAdjacency[curr_peak].pop_back();
+                activeRoute.push(v);
             }
-            else {
-                result.push_back(u + 1);
-                currPath.pop();
-            }
-        }
-
-        std::reverse(result.begin(), result.end());
-        return result;
-    }
-    
-
-    void addEdge(int from, int to, int weight = 1) {
-
-        --from;
-        --to;
-
-        if (from < 0 || from >= numVertices_ || to < 0 || to >= numVertices_) {
-            std::cerr << "Invalid vertex index." << std::endl;
-            return;
-        }
-
-        if (representation_ == ADJACENCY_MATRIX) {
-            if (graphType_ == WEIGHTED) {
-                adjacencyMatrix_[from][to] = weight;
-                if (from != to) {
-                    if (adjacencyMatrix_[to][from] != 0) {
-                        numEdges_++;
-                    }
-                }
-                else {
-                    numEdges_++;
-                }
-
-            }
-            else {
-                if (adjacencyMatrix_[from][to] == 0) {
-                    adjacencyMatrix_[from][to] = 1;
-                    if (from != to) {
-                        if (adjacencyMatrix_[to][from] != 0) {
-                            numEdges_++;
-                        }
-                    }
-                    else {
-                        numEdges_++;
-                    }
-                }
-            }
-
-        }
-
-        else if (representation_ == ADJACENCY_LIST) {
-            bool edgeExists = false;
-            for (auto& edge : adjacencyList_[from]) {
-                if (edge.first == to) {
-                    edgeExists = true;
-                    break;
-                }
-            }
-            if (!edgeExists) {
-                adjacencyList_[from].push_back({ to, weight });
-                numEdges_++;
-            }
-        }
-
-        else if (representation_ == EDGE_LIST) {
-            edgeList_.push_back({ from, to, weight });
-            numEdges_++;
-        }
-    }
-
-
-    void removeEdge(int from, int to) {
-        --from;
-        --to;
-
-        if (from < 0 || from >= numVertices_ || to < 0 || to >= numVertices_) {
-            std::cerr << "Invalid vertex index." << std::endl;
-            return;
-        }
-
-
-        if (representation_ == ADJACENCY_MATRIX) {
-            if (adjacencyMatrix_[from][to] != 0) {
-                adjacencyMatrix_[from][to] = 0;
-                numEdges_--;
-            }
-
-        }
-
-        else if (representation_ == ADJACENCY_LIST) {
-            for (auto it = adjacencyList_[from].begin(); it != adjacencyList_[from].end(); ++it) {
-                if (it->first == to) {
-                    adjacencyList_[from].erase(it);
-                    numEdges_--;
-                    break;
-                }
-            }
-        }
-
-        else if (representation_ == EDGE_LIST) {
-            for (auto it = edgeList_.begin(); it != edgeList_.end(); ++it) {
-                if (it->from == from && it->to == to) {
-                    edgeList_.erase(it);
-                    numEdges_--;
-                    break;
-                }
-            }
-        }
-    }
-
-
-    int changeEdge(int from, int to, int newWeight) {
-
-        --from;
-        --to;
-
-        if (from < 0 || from >= numVertices_ || to < 0 || to >= numVertices_) {
-            std::cerr << "Invalid vertex index." << std::endl;
-            return -1;
-        }
-
-        int oldWeight = -1;
-
-        if (representation_ == ADJACENCY_MATRIX) {
-            oldWeight = adjacencyMatrix_[from][to];
-            adjacencyMatrix_[from][to] = newWeight;
-        }
-        else if (representation_ == ADJACENCY_LIST) {
-            for (auto& edge : adjacencyList_[from]) {
-                if (edge.first == to) {
-                    oldWeight = edge.second;
-                    edge.second = newWeight;
-                    break;
-                }
-            }
-        }
-        else if (representation_ == EDGE_LIST) {
-            for (auto& edge : edgeList_) {
-                if (edge.from == from && edge.to == to) {
-                    oldWeight = edge.weight;
-                    edge.weight = newWeight;
-                    break;
-                }
-            }
-        }
-        return oldWeight;
-    }
-
-    void transformToAdjList() {
-        if (representation_ == ADJACENCY_LIST) {
-            return;
-        }
-
-        adjacencyList_.clear();
-        adjacencyList_.resize(numVertices_);
-        graphType_ = (graphType_ == WEIGHTED) ? WEIGHTED : UNWEIGHTED;
-
-        if (representation_ == ADJACENCY_MATRIX) {
-            for (int i = 0; i < numVertices_; ++i) {
-                for (int j = 0; j < numVertices_; ++j) {
-                    if (adjacencyMatrix_[i][j] != 0) {
-                        adjacencyList_[i].push_back({ j, adjacencyMatrix_[i][j] });
-                    }
-                }
-            }
-        }
-        else if (representation_ == EDGE_LIST) {
-            for (const auto& edge : edgeList_) {
-                adjacencyList_[edge.from].push_back({ edge.to, edge.weight });
-            }
-        }
-        representation_ = ADJACENCY_LIST;
-    }
-
-
-    void transformToAdjMatrix() {
-        if (representation_ == ADJACENCY_MATRIX) {
-            return;
-        }
-
-        adjacencyMatrix_.clear();
-        adjacencyMatrix_.resize(numVertices_, std::vector<int>(numVertices_, 0));
-
-        if (representation_ == ADJACENCY_LIST) {
-            for (int i = 0; i < numVertices_; ++i) {
-                for (const auto& edge : adjacencyList_[i]) {
-                    adjacencyMatrix_[i][edge.first] = edge.second;
-                }
-            }
-        }
-        else if (representation_ == EDGE_LIST) {
-            for (const auto& edge : edgeList_) {
-                adjacencyMatrix_[edge.from][edge.to] = edge.weight;
-            }
-        }
-        representation_ = ADJACENCY_MATRIX;
-    }
-
-
-    void transformToListOfEdges() {
-        if (representation_ == EDGE_LIST) {
-            return;
-        }
-
-        edgeList_.clear();
-
-        if (representation_ == ADJACENCY_MATRIX) {
-            for (int i = 0; i < numVertices_; ++i) {
-                for (int j = 0; j < numVertices_; ++j) {
-                    if (adjacencyMatrix_[i][j] != 0) {
-                        edgeList_.push_back({ i, j, adjacencyMatrix_[i][j] });
-                    }
-                }
-            }
-        }
-        else if (representation_ == ADJACENCY_LIST) {
-            for (int i = 0; i < numVertices_; ++i) {
-                for (const auto& edge : adjacencyList_[i]) {
-                    edgeList_.push_back({ i, edge.first, edge.second });
-                }
-            }
-        }
-        representation_ = EDGE_LIST;
-    }
-
-
-    void writeGraph(const std::string& fileName) {
-        std::ofstream outputFile(fileName);
-        if (!outputFile.is_open()) {
-            std::cerr << "Error opening file for writing: " << fileName << std::endl;
-            return;
-        }
-
-        if (representation_ == ADJACENCY_MATRIX) {
-            outputFile << "C " << numVertices_ << std::endl;
-            outputFile << "0 ";
-            if (graphType_ == WEIGHTED)
-                outputFile << "1" << std::endl;
             else
-                outputFile << "0" << std::endl;
+            {
+                response.push_back(curr_peak + 1);
+                activeRoute.pop();
+            }
+        }
 
-            for (int i = 0; i < numVertices_; ++i) {
-                for (int j = 0; j < numVertices_; ++j) {
-                    outputFile << adjacencyMatrix_[i][j] << " ";
-                }
-                outputFile << std::endl;
-            }
-        }
-        else if (representation_ == ADJACENCY_LIST) {
-            outputFile << "L " << numVertices_ << std::endl;
-            outputFile << "0 ";
-            if (graphType_ == WEIGHTED)
-                outputFile << "1" << std::endl;
-            else
-                outputFile << "0" << std::endl;
-
-            for (int i = 0; i < numVertices_; ++i) {
-                for (const auto& edge : adjacencyList_[i]) {
-                    outputFile << edge.first + 1 << " ";
-                    if (graphType_ == WEIGHTED)
-                        outputFile << edge.second << " ";
-                }
-                outputFile << std::endl;
-            }
-        }
-        else if (representation_ == EDGE_LIST) {
-            outputFile << "E " << numVertices_ << " " << numEdges_ << std::endl;
-            outputFile << "0 ";
-            if (graphType_ == WEIGHTED)
-                outputFile << "1" << std::endl;
-            else
-                outputFile << "0" << std::endl;
-            for (const auto& edge : edgeList_) {
-                outputFile << edge.from + 1 << " " << edge.to + 1 << " " << edge.weight << std::endl;
-            }
-        }
-        outputFile.close();
+        std::reverse(response.begin(), response.end());
+        return response;
     }
 
+    // void addEdge(int from, int to, int weight = 1)
+    // {
+
+    //     --from;
+    //     --to;
+
+    //     if (from < 0 || from >= vertexCount || to < 0 || to >= vertexCount)
+    //     {
+    //         std::cerr << "Неверный индекс вершины" << std::endl;
+    //         return;
+    //     }
+
+    //     switch (format_)
+    //     {
+    //     case EDGE_MATRIX:
+    //     {
+    //         if (graphkind_ == WEIGHTED)
+    //         {
+    //             edgeMatrix_[from][to] = weight;
+    //         }
+    //         else
+    //         {
+    //             edgeMatrix_[from][to] = 1;
+    //         }
+    //         if (from != to)
+    //         {
+    //             if (edgeMatrix_[to][from] != 0)
+    //             {
+    //                 edgeCount++;
+    //             }
+    //         }
+    //         else
+    //         {
+    //             edgeCount++;
+    //         }
+    //         break;
+    //     }
+    //     case CONNECTIVITY_LIST:
+    //     {
+    //         auto &edges = adjacentVerticesList_[from];
+    //         if (std::none_of(edges.begin(), edges.end(), [to](const auto &edge)
+    //                          { return edge.first == to; }))
+    //         {
+    //             edges.emplace_back(to, weight);
+    //             edgeCount++;
+    //         }
+    //         break;
+    //     }
+    //     case VERTEX_LINKS:
+    //     {
+    //         edgeList_.push_back({from, to, weight});
+    //         edgeCount++;
+    //         break;
+    //     }
+    //     }
+    // }
+
+    void removeEdge(int from, int to)
+    {
+        if (from < 0 || from >= vertexCount || to < 0 || to >= vertexCount)
+        {
+            std::cerr << "Неверный индекс вершины" << std::endl;
+            return;
+        }
+
+        if (format_ == EDGE_MATRIX)
+        {
+            if (edgeMatrix_[from][to] != 0)
+            {
+                edgeMatrix_[from][to] = 0;
+                edgeCount--;
+            }
+        }
+
+        else if (format_ == CONNECTIVITY_LIST)
+        {
+            auto &adj = adjacentVerticesList_[from];
+            auto it = std::lower_bound(adj.begin(), adj.end(), to, [](const auto &l, int r)
+                                       { return l.first < r; });
+            if (it != adj.end() && it->first == to)
+            {
+                adj.erase(it);
+                edgeCount--;
+            }
+        }
+
+        else if (format_ == VERTEX_LINKS)
+        {
+            auto it = std::remove_if(edgeList_.begin(), edgeList_.end(), [from, to](const Edge &edge)
+                                     { return edge.from == from && edge.to == to; });
+            if (it != edgeList_.end())
+            {
+                edgeList_.erase(it, edgeList_.end());
+                edgeCount--;
+            }
+        }
+    }
+
+    // int changeEdge(int from, int to, int newWeight)
+    // {
+    //     --from;
+    //     --to;
+
+    //     if (from < 0 || from >= vertexCount || to < 0 || to >= vertexCount)
+    //     {
+    //         std::cerr << "Неверный индекс вершины" << std::endl;
+    //         return -1;
+    //     }
+
+    //     auto &adj = adjacentVerticesList_[from];
+    //     auto it = std::lower_bound(adj.begin(), adj.end(), to, [](const auto &l, int r)
+    //                                { return l.first < r; });
+
+    //     if (it != adj.end() && it->first == to)
+    //     {
+    //         int oldWeight = it->second;
+    //         it->second = newWeight;
+    //         return oldWeight;
+    //     }
+
+    //     return -1;
+    // }
+
+    void transformToAdjList()
+    {
+        if (format_ == CONNECTIVITY_LIST)
+        {
+            return;
+        }
+
+        adjacentVerticesList_.clear();
+        adjacentVerticesList_.resize(vertexCount);
+        graphkind_ = (graphkind_ == WEIGHTED) ? WEIGHTED : NO_WEIGHTS;
+
+        if (format_ == EDGE_MATRIX)
+        {
+            for (int i = 0; i < vertexCount; ++i)
+            {
+                for (int j = 0; j < vertexCount; ++j)
+                {
+                    if (edgeMatrix_[i][j] != 0)
+                    {
+                        adjacentVerticesList_[i].push_back({j, edgeMatrix_[i][j]});
+                    }
+                }
+            }
+        }
+        else if (format_ == VERTEX_LINKS)
+        {
+            for (const auto &edge : edgeList_)
+            {
+                adjacentVerticesList_[edge.from].push_back({edge.to, edge.weight});
+            }
+        }
+        format_ = CONNECTIVITY_LIST;
+    }
+
+    // void transformToAdjMatrix()
+    // {
+    //     if (format_ == EDGE_MATRIX)
+    //         return;
+
+    //     edgeMatrix_.resize(vertexCount, std::vector<int>(vertexCount, 0));
+
+    //     if (format_ == CONNECTIVITY_LIST)
+    //     {
+    //         for (int vertex = 0; vertex < vertexCount; ++vertex)
+    //         {
+    //             auto &edges = adjacentVerticesList_[vertex];
+    //             for (auto it = edges.begin(); it != edges.end(); ++it)
+    //             {
+    //                 int target = it->first;
+    //                 int weight = it->second;
+    //                 edgeMatrix_[vertex][target] = weight;
+    //             }
+    //         }
+    //     }
+    //     else if (format_ == VERTEX_LINKS)
+    //     {
+    //         for (const auto &edge : edgeList_)
+    //         {
+    //             edgeMatrix_[edge.from][edge.to] = edge.weight;
+    //         }
+    //     }
+    //     format_ = EDGE_MATRIX;
+    // }
+
+    // void transformToListOfEdges()
+    // {
+    //     if (format_ == VERTEX_LINKS)
+    //         return;
+
+    //     edgeList_.clear();
+    //     edgeList_.reserve(edgeCount);
+
+    //     if (format_ == EDGE_MATRIX)
+    //     {
+    //         for (int from = 0; from < vertexCount; ++from)
+    //         {
+    //             for (int to = 0; to < vertexCount; ++to)
+    //             {
+    //                 int weight = edgeMatrix_[from][to];
+    //                 if (weight != 0)
+    //                 {
+    //                     edgeList_.emplace_back(Edge{from, to, weight});
+    //                 }
+    //             }
+    //         }
+    //     }
+    //     else if (format_ == CONNECTIVITY_LIST)
+    //     {
+    //         for (int from = 0; from < vertexCount; ++from)
+    //         {
+    //             for (const auto &edge : adjacentVerticesList_[from])
+    //             {
+    //                 edgeList_.emplace_back(Edge{from, edge.first, edge.second});
+    //             }
+    //         }
+    //     }
+    //     format_ = VERTEX_LINKS;
+    // }
+
+    // void writeGraph(const std::string &filename) const
+    // {
+    //     std::ofstream file{filename, std::ios::binary};
+    //     if (!file.is_open())
+    //     {
+    //         throw std::runtime_error{"Ошибка открытия файла для следующей записи" + filename};
+    //     }
+
+    //     char representationCode = format_ == EDGE_MATRIX ? 'C' : format_ == CONNECTIVITY_LIST ? 'L'
+    //                                                                                                             : 'E';
+    //     file.write(&representationCode, sizeof(representationCode));
+    //     auto writeInt = [&file](int value)
+    //     {
+    //         file.write(reinterpret_cast<const char *>(&value), sizeof(value));
+    //     };
+    //     writeInt(vertexCount);
+    //     if (format_ == VERTEX_LINKS)
+    //     {
+    //         writeInt(edgeCount);
+    //     }
+    //     char graphTypeCode = graphkind_ == WEIGHTED ? '1' : '0';
+    //     file.write(&graphTypeCode, sizeof(graphTypeCode));
+
+    //     if (format_ == EDGE_MATRIX)
+    //     {
+    //         file.write(reinterpret_cast<const char *>(edgeMatrix_.data()),
+    //                    vertexCount * vertexCount * sizeof(int));
+    //     }
+    //     else if (format_ == CONNECTIVITY_LIST)
+    //     {
+    //         for (const auto &edges : adjacentVerticesList_)
+    //         {
+    //             writeInt(edges.size());
+    //             file.write(reinterpret_cast<const char *>(edges.data()), edges.size() * sizeof(std::pair<int, int>));
+    //         }
+    //     }
+    //     else if (format_ == VERTEX_LINKS)
+    //     {
+    //         file.write(reinterpret_cast<const char *>(edgeList_.data()), edgeCount * sizeof(Edge));
+    //     }
+    // }
 
 private:
-    Representation representation_;
-    GraphType graphType_;
-    int numVertices_;
-    int numEdges_;
+    Format format_;
+    GraphKind graphkind_;
+    int vertexCount;
+    int edgeCount;
 
-    std::vector<std::vector<int>> adjacencyMatrix_;
-    std::vector<std::vector<std::pair<int, int>>> adjacencyList_;
+    std::vector<std::vector<int>> edgeMatrix_;
+    std::vector<std::vector<std::pair<int, int>>> adjacentVerticesList_;
 
-    struct Edge {
+    struct Edge
+    {
         int from;
         int to;
         int weight;
     };
     std::vector<Edge> edgeList_;
 
-    bool isConnected() {
-        if (numVertices_ == 0) return true;
+    bool isConnected() const
+    {
+        if (vertexCount == 0)
+        {
+            return true;
+        }
 
-        int start = -1;
-        for (int i = 0; i < numVertices_; ++i) {
-            if (!adjacencyList_[i].empty()) {
-                start = i;
+        int initialVertex = -1;
+        for (int vertex = 0; vertex < vertexCount; ++vertex)
+        {
+            if (!adjacentVerticesList_[vertex].empty())
+            {
+                initialVertex = vertex;
                 break;
             }
         }
-        if (start == -1) return true;
 
-        std::vector<bool> visited(numVertices_, false);
-        std::queue<int> q;
-        q.push(start);
-        visited[start] = true;
+        if (initialVertex == -1)
+        {
+            return true;
+        }
 
-        int count = 0;
+        std::vector<bool> marked(vertexCount, false);
+        std::stack<int> verticesToVisit;
+        verticesToVisit.push(initialVertex);
+        marked[initialVertex] = true;
 
-        while (!q.empty()) {
-            int u = q.front();
-            q.pop();
-            count++;
-            for (const auto& edge : adjacencyList_[u]) {
-                int v = edge.first;
-                if (edge.second > 0 && !visited[v]) {
-                    visited[v] = true;
-                    q.push(v);
+        int markedkol = 0;
+        while (!verticesToVisit.empty())
+        {
+            int currentVertex = verticesToVisit.top();
+            verticesToVisit.pop();
+            ++markedkol;
+
+            for (const auto &edge : adjacentVerticesList_[currentVertex])
+            {
+                int nhbr = edge.first;
+                if (edge.second > 0 && !marked[nhbr])
+                {
+                    marked[nhbr] = true;
+                    verticesToVisit.push(nhbr);
                 }
             }
         }
 
-        return count == std::count_if(adjacencyList_.begin(), adjacencyList_.end(),
-                                      [](const std::vector<std::pair<int, int>>& edges) { return !edges.empty(); });
+        return markedkol == std::count_if(adjacentVerticesList_.begin(), adjacentVerticesList_.end(),
+                                             [](const auto &edges)
+                                             { return !edges.empty(); });
     }
 };
-int main(){
-
-	freopen("output.txt", "w", stdout);
-
+int main()
+{
+    freopen("output.txt", "w", stdout);
     Graph graph;
-
-	graph.readGraph("input.txt");
-
-	
-
-	bool circleExist = false;
-
-	int v = graph.checkEuler(circleExist);
-
-
-
-	if(v == 0) {
-
-		std::cout<<"0\n";
-
-		exit(0);
-
-	}
-
-	else
-
-	{
-
-	  //  std::vector<int> path = graph.getEuleranTourEffective();
-
-	   std::vector<int> path = graph.getEuleranTourFleri();
-
-        std::cout<<path[0]<<"\n";
-
-    	for (int i = 0; i < path.size(); ++i) {
-
-    	    std::cout << path[i] << ((i + 1 < path.size()) ? " ":"\n");
-
-    	}
-
-	}
-
-	
-
-	return 0;
-
+    graph.readGraph("input.txt");
+    bool circleExist = false;
+    int v = graph.checkEuler(circleExist);
+    if (v == 0)
+    {
+        std::cout << "0\n";
+        exit(0);
+    }
+    else
+    {
+        //  std::vector<int> path = graph.getEuleranTourEffective();
+        std::vector<int> path = graph.getEuleranTourFleri();
+        std::cout << path[0] << "\n";
+        for (int i = 0; i < path.size(); ++i)
+        {
+            std::cout << path[i] << ((i + 1 < path.size()) ? " " : "\n");
+        }
+    }
+    return 0;
 }
