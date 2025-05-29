@@ -18,11 +18,19 @@ private:
     std::vector<int> depth;
 
 public:
-    DSU(int N) : leader(N), depth(N, 0)
+    /// Default constructor for the Disjoint Set Union data structure.
+    ///
+    /// @param N The number of elements in the set.
+    DSU(int N)
+        : leader(N), depth(N, 0)
     {
         std::iota(leader.begin(), leader.end(), 0);
     }
 
+    /// Finds the representative of the set which contains the element x.
+    ///
+    /// @param x The element for which we want to find the representative.
+    /// @return The representative of the set which contains x.
     int find(int x)
     {
         if (x == leader[x])
@@ -30,17 +38,25 @@ public:
         return leader[x] = find(leader[x]);
     }
 
+    /// Unites the sets containing elements x and y.
+    ///
+    /// @param x An element in the first set.
+    /// @param y An element in the second set.
     void unite(int x, int y)
     {
         int leftRoot = find(x);
         int rightRoot = find(y);
+
+        // If both elements have different roots, unite them
         if (leftRoot != rightRoot)
         {
+            // Make the root with lesser depth point to the root with greater depth
             if (depth[leftRoot] < depth[rightRoot])
                 leader[leftRoot] = rightRoot;
             else
             {
                 leader[rightRoot] = leftRoot;
+                // If both roots have the same depth, increment the depth of the new root
                 if (depth[leftRoot] == depth[rightRoot])
                     ++depth[leftRoot];
             }
@@ -66,18 +82,22 @@ public:
 
     Graph() : format_(EDGE_MATRIX), graphkind_(NO_WEIGHTS), vertexCount(0), edgeCount(0) {}
 
+    /// Reads a graph from a file and initializes the graph's structure.
+    ///
+    /// @param fileName The name of the file containing the graph data.
     void readGraph(const std::string &fileName)
     {
         std::ifstream dataSource{fileName};
         if (!dataSource.is_open())
         {
-            std::cerr << "Не получается открыть файл" << fileName << '\n';
+            std::cerr << "Unable to open file " << fileName << '\n';
             return;
         }
 
         char symbol;
         dataSource >> symbol;
 
+        // Determine the graph format based on the symbol
         switch (symbol)
         {
         case 'C':
@@ -90,7 +110,7 @@ public:
             format_ = VERTEX_LINKS;
             break;
         default:
-            std::cerr << "Неизвестный символ представления графа";
+            std::cerr << "Unknown graph representation symbol";
             return;
         }
 
@@ -101,6 +121,7 @@ public:
 
         if (format_ == EDGE_MATRIX)
         {
+            // Load the adjacency matrix
             edgeMatrix_.assign(vertexCount, std::vector<int>(vertexCount));
             for (int i = 0; i < vertexCount; ++i)
             {
@@ -112,14 +133,15 @@ public:
             }
             if (!oriented)
             {
-                edgeCount /= 2;
+                edgeCount /= 2; // Account for undirected edges
             }
         }
         else if (format_ == CONNECTIVITY_LIST)
         {
+            // Load the adjacency list
             adjacentVerticesList_.assign(vertexCount, {});
             std::string line;
-            std::getline(dataSource, line);
+            std::getline(dataSource, line); // Consume the remainder of the current line
             for (int i = 0; i < vertexCount; ++i)
             {
                 std::getline(dataSource, line);
@@ -137,11 +159,12 @@ public:
             }
             if (!oriented)
             {
-                edgeCount /= 2;
+                edgeCount /= 2; // Account for undirected edges
             }
         }
         else if (format_ == VERTEX_LINKS)
         {
+            // Load the edge list
             edgeList_.reserve(edgeCount);
             for (int i = 0; i < edgeCount; ++i)
             {
@@ -156,50 +179,76 @@ public:
         }
     }
 
+    /**
+     * \brief Checks if a graph is Eulerian.
+     * \param [out] circleExist If the graph is Eulerian, this parameter will be set to true.
+     * \return The vertex to start the Eulerian cycle with.
+     */
     int checkEuler(bool &circleExist)
     {
+        // Count the number of connected components in the graph
         const auto numComponents = countComponents();
+
+        // If there are more than one connected components, the graph is not Eulerian
         if (numComponents > 1)
             return 0;
 
+        // Count the number of vertices with odd degree
         int oddDegreeVertexCount = 0;
         int initialVertex = -1;
-        for (const auto &edges : adjacentVerticesList_)
+        for (size_t i = 0; i < adjacentVerticesList_.size(); ++i)
         {
-            const auto valence = edges.size();
+            const auto valence = adjacentVerticesList_[i].size();
             if (valence % 2 == 1)
             {
-                oddDegreeVertexCount++;
+                ++oddDegreeVertexCount;
                 if (initialVertex == -1)
-                    initialVertex = &edges - &adjacentVerticesList_[0];
+                    initialVertex = static_cast<int>(i);
             }
             if (valence > 0 && initialVertex == -1)
-            {
-                initialVertex = &edges - &adjacentVerticesList_[0];
-            }
+                initialVertex = static_cast<int>(i);
         }
+
+        // A graph is Eulerian if it has no odd degree vertices
         circleExist = (oddDegreeVertexCount == 0);
         return initialVertex + 1;
     }
 
+    /**
+     * \brief Counts the number of connected components in the graph.
+     * \return The number of connected components in the graph.
+     */
     int countComponents() const
     {
+        // Mark all vertices as unvisited
         std::vector<bool> marked(vertexCount, false);
+
+        // Count the number of connected components
         int components = 0;
         for (int i = 0; i < vertexCount; ++i)
         {
             if (!marked[i])
             {
+                // Perform a depth-first search from the current vertex
                 dfs(i, marked);
                 ++components;
             }
         }
+
         return components;
     }
 
+    /**
+     * \brief Performs a depth-first search from a given vertex.
+     * \param vertex The index of the vertex to start the search from.
+     * \param marked A vector to keep track of the visited vertices.
+     */
     void dfs(int vertex, std::vector<bool> &marked) const
     {
+        // Mark the current vertex as visited
         marked[vertex] = true;
+
+        // Recursively visit all the neighbors of the current vertex
         for (const auto &edge : adjacentVerticesList_[vertex])
         {
             const auto nhbr = edge.first;
@@ -210,6 +259,10 @@ public:
         }
     }
 
+    /**
+     * \brief Finds an Eulerian tour in the graph.
+     * \return A vector of vertex indices representing an Eulerian tour.
+     */
     std::vector<int> getEuleranTourFleri()
     {
         std::vector<int> response;
@@ -218,16 +271,22 @@ public:
         if (init == 0)
             return response;
 
+        // Create a temporary copy of the graph
         Graph graphBuffer = *this;
         graphBuffer.transformToAdjList();
+
+        // Use a stack to keep track of the active route
         std::stack<int> activeRoute;
         init--;
         activeRoute.push(init);
 
+        // Loop until the stack is empty
         while (!activeRoute.empty())
         {
             int curr_peak = activeRoute.top();
             int nextNode = -1;
+
+            // Find the next node in the Eulerian tour
             auto it = graphBuffer.adjacentVerticesList_[curr_peak].begin();
             while (it != graphBuffer.adjacentVerticesList_[curr_peak].end())
             {
@@ -244,6 +303,7 @@ public:
                 ++it;
             }
 
+            // If there is a next node, add it to the active route
             if (nextNode == -1)
             {
                 response.push_back(curr_peak + 1);
@@ -255,27 +315,26 @@ public:
             }
         }
 
+        // Reverse the response vector to get the correct order
         std::reverse(response.begin(), response.end());
         return response;
     }
 
+    /**
+     * \brief Finds an Eulerian tour in the graph using a non-recursive approach.
+     * \return A vector of vertex indices representing an Eulerian tour.
+     */
     std::vector<int> getEuleranTourEffective()
     {
         std::vector<int> response;
         bool circleExist;
         int init = checkEuler(circleExist);
+
+        // If there is no Eulerian path or circuit, return an empty response
         if (init == 0)
             return response;
 
-        std::vector<std::vector<int>> temporaryAdjacency(adjacentVerticesList_.size());
-        for (size_t i = 0; i < adjacentVerticesList_.size(); ++i)
-        {
-            for (const auto &edge : adjacentVerticesList_[i])
-            {
-                temporaryAdjacency[i].push_back(edge.first);
-            }
-        }
-
+        std::vector<bool> attendanced(vertexCount, false); // Track visited vertices
         std::stack<int> activeRoute;
         init--;
         activeRoute.push(init);
@@ -284,80 +343,35 @@ public:
         {
             int curr_peak = activeRoute.top();
 
-            if (!temporaryAdjacency[curr_peak].empty())
+            // Mark the vertex as visited if not already done
+            if (!attendanced[curr_peak])
             {
-                int v = temporaryAdjacency[curr_peak].back();
-                temporaryAdjacency[curr_peak].pop_back();
-                activeRoute.push(v);
+                attendanced[curr_peak] = true;
+                response.push_back(curr_peak + 1);
+            }
+
+            // If no adjacent vertices remain, backtrack
+            if (adjacentVerticesList_[curr_peak].empty())
+            {
+                activeRoute.pop();
             }
             else
             {
-                response.push_back(curr_peak + 1);
-                activeRoute.pop();
+                // Otherwise, continue to the next vertex
+                int v = adjacentVerticesList_[curr_peak].back().first;
+                adjacentVerticesList_[curr_peak].pop_back();
+                activeRoute.push(v);
             }
         }
 
-        std::reverse(response.begin(), response.end());
         return response;
     }
 
-    // void addEdge(int from, int to, int weight = 1)
-    // {
-
-    //     --from;
-    //     --to;
-
-    //     if (from < 0 || from >= vertexCount || to < 0 || to >= vertexCount)
-    //     {
-    //         std::cerr << "Неверный индекс вершины" << std::endl;
-    //         return;
-    //     }
-
-    //     switch (format_)
-    //     {
-    //     case EDGE_MATRIX:
-    //     {
-    //         if (graphkind_ == WEIGHTED)
-    //         {
-    //             edgeMatrix_[from][to] = weight;
-    //         }
-    //         else
-    //         {
-    //             edgeMatrix_[from][to] = 1;
-    //         }
-    //         if (from != to)
-    //         {
-    //             if (edgeMatrix_[to][from] != 0)
-    //             {
-    //                 edgeCount++;
-    //             }
-    //         }
-    //         else
-    //         {
-    //             edgeCount++;
-    //         }
-    //         break;
-    //     }
-    //     case CONNECTIVITY_LIST:
-    //     {
-    //         auto &edges = adjacentVerticesList_[from];
-    //         if (std::none_of(edges.begin(), edges.end(), [to](const auto &edge)
-    //                          { return edge.first == to; }))
-    //         {
-    //             edges.emplace_back(to, weight);
-    //             edgeCount++;
-    //         }
-    //         break;
-    //     }
-    //     case VERTEX_LINKS:
-    //     {
-    //         edgeList_.push_back({from, to, weight});
-    //         edgeCount++;
-    //         break;
-    //     }
-    //     }
-    // }
-
+    /**
+     * \brief Removes an edge from the graph.
+     * \param from The source vertex of the edge.
+     * \param to The destination vertex of the edge.
+     */
     void removeEdge(int from, int to)
     {
         if (from < 0 || from >= vertexCount || to < 0 || to >= vertexCount)
@@ -366,6 +380,7 @@ public:
             return;
         }
 
+        // Remove the edge from the adjacency matrix representation
         if (format_ == EDGE_MATRIX)
         {
             if (edgeMatrix_[from][to] != 0)
@@ -375,6 +390,7 @@ public:
             }
         }
 
+        // Remove the edge from the adjacency list representation
         else if (format_ == CONNECTIVITY_LIST)
         {
             auto &adj = adjacentVerticesList_[from];
@@ -387,6 +403,7 @@ public:
             }
         }
 
+        // Remove the edge from the edge list representation
         else if (format_ == VERTEX_LINKS)
         {
             auto it = std::remove_if(edgeList_.begin(), edgeList_.end(), [from, to](const Edge &edge)
@@ -399,31 +416,7 @@ public:
         }
     }
 
-    // int changeEdge(int from, int to, int newWeight)
-    // {
-    //     --from;
-    //     --to;
-
-    //     if (from < 0 || from >= vertexCount || to < 0 || to >= vertexCount)
-    //     {
-    //         std::cerr << "Неверный индекс вершины" << std::endl;
-    //         return -1;
-    //     }
-
-    //     auto &adj = adjacentVerticesList_[from];
-    //     auto it = std::lower_bound(adj.begin(), adj.end(), to, [](const auto &l, int r)
-    //                                { return l.first < r; });
-
-    //     if (it != adj.end() && it->first == to)
-    //     {
-    //         int oldWeight = it->second;
-    //         it->second = newWeight;
-    //         return oldWeight;
-    //     }
-
-    //     return -1;
-    // }
-
+    /// Transforms the graph representation to an adjacency list.
     void transformToAdjList()
     {
         if (format_ == CONNECTIVITY_LIST)
@@ -437,12 +430,14 @@ public:
 
         if (format_ == EDGE_MATRIX)
         {
+            // Iterate over the adjacency matrix
             for (int i = 0; i < vertexCount; ++i)
             {
                 for (int j = 0; j < vertexCount; ++j)
                 {
                     if (edgeMatrix_[i][j] != 0)
                     {
+                        // Add the edge to the adjacency list
                         adjacentVerticesList_[i].push_back({j, edgeMatrix_[i][j]});
                     }
                 }
@@ -450,120 +445,15 @@ public:
         }
         else if (format_ == VERTEX_LINKS)
         {
+            // Iterate over the edge list
             for (const auto &edge : edgeList_)
             {
+                // Add the edge to the adjacency list
                 adjacentVerticesList_[edge.from].push_back({edge.to, edge.weight});
             }
         }
         format_ = CONNECTIVITY_LIST;
     }
-
-    // void transformToAdjMatrix()
-    // {
-    //     if (format_ == EDGE_MATRIX)
-    //         return;
-
-    //     edgeMatrix_.resize(vertexCount, std::vector<int>(vertexCount, 0));
-
-    //     if (format_ == CONNECTIVITY_LIST)
-    //     {
-    //         for (int vertex = 0; vertex < vertexCount; ++vertex)
-    //         {
-    //             auto &edges = adjacentVerticesList_[vertex];
-    //             for (auto it = edges.begin(); it != edges.end(); ++it)
-    //             {
-    //                 int target = it->first;
-    //                 int weight = it->second;
-    //                 edgeMatrix_[vertex][target] = weight;
-    //             }
-    //         }
-    //     }
-    //     else if (format_ == VERTEX_LINKS)
-    //     {
-    //         for (const auto &edge : edgeList_)
-    //         {
-    //             edgeMatrix_[edge.from][edge.to] = edge.weight;
-    //         }
-    //     }
-    //     format_ = EDGE_MATRIX;
-    // }
-
-    // void transformToListOfEdges()
-    // {
-    //     if (format_ == VERTEX_LINKS)
-    //         return;
-
-    //     edgeList_.clear();
-    //     edgeList_.reserve(edgeCount);
-
-    //     if (format_ == EDGE_MATRIX)
-    //     {
-    //         for (int from = 0; from < vertexCount; ++from)
-    //         {
-    //             for (int to = 0; to < vertexCount; ++to)
-    //             {
-    //                 int weight = edgeMatrix_[from][to];
-    //                 if (weight != 0)
-    //                 {
-    //                     edgeList_.emplace_back(Edge{from, to, weight});
-    //                 }
-    //             }
-    //         }
-    //     }
-    //     else if (format_ == CONNECTIVITY_LIST)
-    //     {
-    //         for (int from = 0; from < vertexCount; ++from)
-    //         {
-    //             for (const auto &edge : adjacentVerticesList_[from])
-    //             {
-    //                 edgeList_.emplace_back(Edge{from, edge.first, edge.second});
-    //             }
-    //         }
-    //     }
-    //     format_ = VERTEX_LINKS;
-    // }
-
-    // void writeGraph(const std::string &filename) const
-    // {
-    //     std::ofstream file{filename, std::ios::binary};
-    //     if (!file.is_open())
-    //     {
-    //         throw std::runtime_error{"Ошибка открытия файла для следующей записи" + filename};
-    //     }
-
-    //     char representationCode = format_ == EDGE_MATRIX ? 'C' : format_ == CONNECTIVITY_LIST ? 'L'
-    //                                                                                                             : 'E';
-    //     file.write(&representationCode, sizeof(representationCode));
-    //     auto writeInt = [&file](int value)
-    //     {
-    //         file.write(reinterpret_cast<const char *>(&value), sizeof(value));
-    //     };
-    //     writeInt(vertexCount);
-    //     if (format_ == VERTEX_LINKS)
-    //     {
-    //         writeInt(edgeCount);
-    //     }
-    //     char graphTypeCode = graphkind_ == WEIGHTED ? '1' : '0';
-    //     file.write(&graphTypeCode, sizeof(graphTypeCode));
-
-    //     if (format_ == EDGE_MATRIX)
-    //     {
-    //         file.write(reinterpret_cast<const char *>(edgeMatrix_.data()),
-    //                    vertexCount * vertexCount * sizeof(int));
-    //     }
-    //     else if (format_ == CONNECTIVITY_LIST)
-    //     {
-    //         for (const auto &edges : adjacentVerticesList_)
-    //         {
-    //             writeInt(edges.size());
-    //             file.write(reinterpret_cast<const char *>(edges.data()), edges.size() * sizeof(std::pair<int, int>));
-    //         }
-    //     }
-    //     else if (format_ == VERTEX_LINKS)
-    //     {
-    //         file.write(reinterpret_cast<const char *>(edgeList_.data()), edgeCount * sizeof(Edge));
-    //     }
-    // }
 
 private:
     Format format_;
@@ -582,13 +472,19 @@ private:
     };
     std::vector<Edge> edgeList_;
 
+    /**
+     * \brief Checks if the graph is connected.
+     * \return True if the graph is connected, otherwise false.
+     */
     bool isConnected() const
     {
+        // If there are no vertices, the graph is considered connected
         if (vertexCount == 0)
         {
             return true;
         }
 
+        // Find an initial vertex with an edge
         int initialVertex = -1;
         for (int vertex = 0; vertex < vertexCount; ++vertex)
         {
@@ -599,37 +495,42 @@ private:
             }
         }
 
+        // If no initial vertex is found, the graph is considered connected
         if (initialVertex == -1)
         {
             return true;
         }
 
+        // Vector to keep track of visited vertices
         std::vector<bool> marked(vertexCount, false);
+        // Stack for implementing DFS
         std::stack<int> verticesToVisit;
         verticesToVisit.push(initialVertex);
         marked[initialVertex] = true;
 
-        int markedkol = 0;
+        int markedCount = 0;
         while (!verticesToVisit.empty())
         {
             int currentVertex = verticesToVisit.top();
             verticesToVisit.pop();
-            ++markedkol;
+            ++markedCount;
 
+            // Visit all adjacent unmarked vertices
             for (const auto &edge : adjacentVerticesList_[currentVertex])
             {
-                int nhbr = edge.first;
-                if (edge.second > 0 && !marked[nhbr])
+                int neighbor = edge.first;
+                if (edge.second > 0 && !marked[neighbor])
                 {
-                    marked[nhbr] = true;
-                    verticesToVisit.push(nhbr);
+                    marked[neighbor] = true;
+                    verticesToVisit.push(neighbor);
                 }
             }
         }
 
-        return markedkol == std::count_if(adjacentVerticesList_.begin(), adjacentVerticesList_.end(),
-                                             [](const auto &edges)
-                                             { return !edges.empty(); });
+        // Check if all vertices with edges are marked
+        return markedCount == std::count_if(adjacentVerticesList_.begin(), adjacentVerticesList_.end(),
+                                            [](const auto &edges)
+                                            { return !edges.empty(); });
     }
 };
 int main()
