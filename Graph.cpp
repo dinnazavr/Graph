@@ -626,39 +626,37 @@ private:
     bool isConnected() {
         if (numVertices_ == 0) return true;
 
-        int start = 0;
-        for (; start < numVertices_; ++start) {
-            if (!adjacencyList_[start].empty()) break;
+        int start = -1;
+        for (int i = 0; i < numVertices_; ++i) {
+            if (!adjacencyList_[i].empty()) {
+                start = i;
+                break;
+            }
         }
-        if (start == numVertices_) return true;
+        if (start == -1) return true;
 
         std::vector<bool> visited(numVertices_, false);
         std::queue<int> q;
         q.push(start);
         visited[start] = true;
-        int count = 1;
+
+        int count = 0;
 
         while (!q.empty()) {
             int u = q.front();
             q.pop();
+            count++;
             for (const auto& edge : adjacencyList_[u]) {
-                if (edge.second > 0) {
-                    int v = edge.first;
-                    if (!visited[v]) {
-                        visited[v] = true;
-                        q.push(v);
-                        count++;
-                    }
+                int v = edge.first;
+                if (edge.second > 0 && !visited[v]) {
+                    visited[v] = true;
+                    q.push(v);
                 }
             }
         }
 
-        for (int i = 0; i < numVertices_; ++i) {
-            if (!adjacencyList_[i].empty() && !visited[i]) {
-                return false;
-            }
-        }
-        return true;
+        return count == std::count_if(adjacencyList_.begin(), adjacencyList_.end(),
+                                      [](const std::vector<std::pair<int, int>>& edges) { return !edges.empty(); });
     }
 };
 int main(){
