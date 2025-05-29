@@ -18,19 +18,12 @@ private:
     std::vector<int> depth;
 
 public:
-    /// Default constructor for the Disjoint Set Union data structure.
-    ///
-    /// @param N The number of elements in the set.
     DSU(int N)
         : leader(N), depth(N, 0)
     {
         std::iota(leader.begin(), leader.end(), 0);
     }
 
-    /// Finds the representative of the set which contains the element x.
-    ///
-    /// @param x The element for which we want to find the representative.
-    /// @return The representative of the set which contains x.
     int find(int x)
     {
         if (x == leader[x])
@@ -38,10 +31,6 @@ public:
         return leader[x] = find(leader[x]);
     }
 
-    /// Unites the sets containing elements x and y.
-    ///
-    /// @param x An element in the first set.
-    /// @param y An element in the second set.
     void unite(int x, int y)
     {
         int leftRoot = find(x);
@@ -82,15 +71,12 @@ public:
 
     Graph() : format_(EDGE_MATRIX), graphkind_(NO_WEIGHTS), vertexCount(0), edgeCount(0) {}
 
-    /// Reads a graph from a file and initializes the graph's structure.
-    ///
-    /// @param fileName The name of the file containing the graph data.
     void readGraph(const std::string &fileName)
     {
         std::ifstream dataSource{fileName};
         if (!dataSource.is_open())
         {
-            std::cerr << "Unable to open file " << fileName << '\n';
+            std::cerr << "This file does not open" << fileName << '\n';
             return;
         }
 
@@ -110,7 +96,7 @@ public:
             format_ = VERTEX_LINKS;
             break;
         default:
-            std::cerr << "Unknown graph representation symbol";
+            std::cerr << "There is no such symbol to represent a graph!";
             return;
         }
 
@@ -179,11 +165,6 @@ public:
         }
     }
 
-    /**
-     * \brief Checks if a graph is Eulerian.
-     * \param [out] circleExist If the graph is Eulerian, this parameter will be set to true.
-     * \return The vertex to start the Eulerian cycle with.
-     */
     int checkEuler(bool &circleExist)
     {
         // Count the number of connected components in the graph
@@ -214,10 +195,6 @@ public:
         return initialVertex + 1;
     }
 
-    /**
-     * \brief Counts the number of connected components in the graph.
-     * \return The number of connected components in the graph.
-     */
     int countComponents() const
     {
         // Mark all vertices as unvisited
@@ -238,11 +215,6 @@ public:
         return components;
     }
 
-    /**
-     * \brief Performs a depth-first search from a given vertex.
-     * \param vertex The index of the vertex to start the search from.
-     * \param marked A vector to keep track of the visited vertices.
-     */
     void dfs(int vertex, std::vector<bool> &marked) const
     {
         // Mark the current vertex as visited
@@ -259,10 +231,6 @@ public:
         }
     }
 
-    /**
-     * \brief Finds an Eulerian tour in the graph.
-     * \return A vector of vertex indices representing an Eulerian tour.
-     */
     std::vector<int> getEuleranTourFleri()
     {
         std::vector<int> response;
@@ -320,10 +288,6 @@ public:
         return response;
     }
 
-    /**
-     * \brief Finds an Eulerian tour in the graph using a non-recursive approach.
-     * \return A vector of vertex indices representing an Eulerian tour.
-     */
     std::vector<int> getEuleranTourEffective()
     {
         std::vector<int> response;
@@ -367,16 +331,11 @@ public:
         return response;
     }
 
-    /**
-     * \brief Removes an edge from the graph.
-     * \param from The source vertex of the edge.
-     * \param to The destination vertex of the edge.
-     */
     void removeEdge(int from, int to)
     {
         if (from < 0 || from >= vertexCount || to < 0 || to >= vertexCount)
         {
-            std::cerr << "Неверный индекс вершины" << std::endl;
+            std::cerr << "Uncorrect vertex index" << std::endl;
             return;
         }
 
@@ -416,7 +375,7 @@ public:
         }
     }
 
-    /// Transforms the graph representation to an adjacency list.
+    // Transforms the graph representation to an adjacency list.
     void transformToAdjList()
     {
         if (format_ == CONNECTIVITY_LIST)
@@ -472,10 +431,6 @@ private:
     };
     std::vector<Edge> edgeList_;
 
-    /**
-     * \brief Checks if the graph is connected.
-     * \return True if the graph is connected, otherwise false.
-     */
     bool isConnected() const
     {
         // If there are no vertices, the graph is considered connected
